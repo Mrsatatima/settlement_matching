@@ -3,6 +3,7 @@ import openpyxl
 import re
 from copy import deepcopy
 import difflib
+import os
 
 adamawa_LGA =  ["DEMSA","FUFORE","GANYE","GIREI","GOMBI","GUYUK","HONG","JADA",
        "LAMURDE","MADAGALI","MAIHA","MAYO-BELWA","MICHIKA","MUBI NORTH",
@@ -367,6 +368,10 @@ def create_excel(matched_settlements, unmatched_settlements,LGA, file_name, grid
 
     # Print pre_reconciled DataFrame
     print(pre_reconciled)
+    #create excel file using file name if its not in the directory
+    if not os.path.isfile(file_name):
+        wb = openpyxl.Workbook()  
+        wb.save(file_name, as_template=False)
 
     # Open the workbook and create a writer object to write the DataFrame to the sheet
     book = openpyxl.load_workbook(file_name)
