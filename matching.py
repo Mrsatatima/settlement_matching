@@ -285,3 +285,181 @@ def similar_name(p3b_list, capture_list, perfect_match, LGA, ratio, dictionary=F
 
     # return the following variables
     return perfect_match, p3b_list, count, capture_list
+
+def create_excel(matched_settlements, unmatched_settlements,LGA, file_name, grid3=False,field_name="GRID3 Name"):
+    """
+        Creates an excel sheet with settlement data for a given Local Government Area (LGA).
+
+        Args:
+            matched_settlements (dict): A dictionary containing matched settlements information.
+            unmatched_settlements (dict): A dictionary containing unmatched settlements information.
+            LGA (str): Name of the Local Government Area (LGA).
+            file_name (str): Name of the Excel file to be created.
+            grid3 (bool, optional): A boolean value indicating whether its GRID3 or RR Collect.
+                                    Defaults to False.
+            field_name (str, optional): Name of the field to be used for Grid3 name if grid3 is True.
+                                        Defaults to "GRID3 Name".
+
+        Returns:
+            str: A string indicating that the function has finished execution ("DONE").
+    """
+
+    lga_name = []
+    ward_name =[]
+    p3b_name = []
+    grid3_name = []
+    capture_name= []
+    coordinate = []
+    lat  =[]
+    lon = []
+    acc = []
+    alt = []
+
+    # Loop through the matched_settlements dictionary to extract information
+    # and append it to respective lists
+    for lga, wards in matched_settlements.items():
+        for ward, dhs in wards.items():
+            for dh, dh2 in dhs.items():
+                text =""
+                cod_text =""
+                for name, coord in dh2.items():
+                    text += f"{name}"
+                    cod_text += f"{coord}"
+                cod =cod_text.split("|")
+                lat.append(cod[0])
+                lon.append(cod[1])
+                if len(cod) ==4:
+                    acc.append(cod[2])
+                    alt.append(cod[3])
+                else:
+                    acc.append("")
+                    alt.append("")
+
+                capture_name.append(text.capitalize())
+                lga_name.append(lga.capitalize())
+                ward_name.append(ward.capitalize())
+                p3b_name.append(dh.capitalize())
+
+    # Loop through the unmatched_settlements dictionary to extract information
+    # and append it to respective lists
+    for lga, wards in unmatched_settlements.items():
+        for ward, dhs in wards.items():
+            for dh in dhs:
+                coordinate.append("")
+                grid3_name.append(" ")
+                capture_name.append(" ")
+                lga_name.append(lga.capitalize())
+                ward_name.append(ward.capitalize())
+                p3b_name.append(dh)
+                lat.append("")
+                lon.append("")
+                acc.append("")
+                alt.append("")
+
+    # Create pre_reconciled DataFrame with the extracted information
+    if not grid3:
+        pre_reconciled = pd.DataFrame({"LGA":lga_name,"Ward":ward_name,"DH P3B Name":p3b_name,
+                            f"{field_name}":capture_name, "Latitude":lat,"Longitude":lon,
+                            "Accuracy":acc,"Altitude":alt})
+    else:
+        pre_reconciled = pd.DataFrame({"LGA":lga_name,"Ward":ward_name,"DH P3B Name":p3b_name,
+                            f"{field_name}":capture_name, "Latitude":lat,"Longitude":lon,})
+
+    # Print pre_reconciled DataFrame
+    print(pre_reconciled)
+
+    # Open the workbook and create a writer object to write the DataFrame to the sheet
+    book = openpyxl.load_workbook(file_name)
+    writer = pd.ExcelWriter(file_name, "openpyxl")
+    writer.book =book
+    pre_reconciled.to_excel(writer, sheet_name=f'{LGA}',index=False )
+    writer.close()
+    return "DONE"
+
+def run():
+    """
+        Runs the matching process for each Local Government Area (LGA) in Adamawa state.
+
+        Reads in data files for settlements captured in grid3 and RR Collection exercises,
+        as well as the P3B data for each LGA. Matches settlements in the P3B data to settlements in the
+        grid3 and RR Collection data, then writes the results to separate Excel files for each LGA.
+
+        Returns nothing.
+    """
+    # Read in the data files for settlements captured in grid3 and RR Collection exercises
+    grid3_file= pd.read_csv("Adamawa_grid3_settlements.csv")
+    rr_collect_file = pd.read_csv("Cleaned_adamawa_settlement_capture.csv")
+
+    # Create a dictionary to hold the matching results for each LGA
+    summary_dic= {"LGA":[],"Total P3B Settlement":[],
+                  "100% matched":[],">= 70% matched":[],
+                  ">= 50% matched":[],"Not matched":[]}
+
+    # Iterate over each LGA
+    for local_gov in LGA:
+        # Read in the P3B data for the current LGA
+        p3b =  pd.read_excel("ADAMAWA HARMONIZED P3B.xlsx", f'{local_gov}'.upper())
+
+        # Get a list of settlements in the P3B data for the current LGA
+        # and the total number of settlements in the P3B data for the current LGA
+        p3b_list, total_settlement = get_p3b_list(p3b,local_gov,)
+
+        # Get a list of settlements captured in grid3 for the current LGA,
+        # and match settlements in the P3B data to settlements in the grid3 data
+        grid3_list = get_captured_list(grid3_file,local_gov,True)
+        perfect = {}
+        updated_p3B_list, updated_grid3_list, perfect, same_matched = matching_same_name(p3b_list,grid3_list,perfect,local_gov)
+
+        # Match settlements in the P3B data that were not matched in the first pass to
+        # settlements in the grid3 data using a similarity threshold of 0.9
+        perfect, not_matched, similar_matched_7, updated_grid3_list = similar_name(updated_p3B_list, updated_grid3_list,perfect,local_gov,.9)
+
+        # Match settlements in the P3B data that were not matched in the second pass to
+        # settlements in the grid3 data using a similarity threshold of 0.75
+        perfect, not_matched, similar_matched_5, updated_grid3_list= similar_name(not_matched,updated_grid3_list,perfect,local_gov,.75,dictionary=True)
+
+        # Write the matching results to an Excel file for the current LGA
+        create_excel(perfect,{},local_gov,"Adamawa_matching_set_with_GRID3.xlsx",True)
+
+        # Print a message indicating that the matching process for the current LGA is complete
+        print("Done...........................................")
+        print("Finish GRID3...........................................||||||||||||||||||||||||||||||||||")
+
+        # Match settlements in the P3B data that were not matched in the first pass to rr_collect data
+        perfect ={}
+        # Perform exact name matching between not_matched settlements from p3b data and rr_collect data
+        updated_not_matched, updated_rr_collect_list, perfect, same_matched = matching_same_name(not_matched,rr_collect_list,perfect,local_gov)
+       
+        # Match settlements in the P3B data that were not matched in the second pass to
+        # settlements in  rr_collect data using a similarity threshold of 0.9
+        perfect, updated_not_matched, similar_matched_7, updated_rr_collect_list = similar_name(updated_not_matched, updated_rr_collect_list,perfect,local_gov,.9)
+
+        # Match settlements in the P3B data that were not matched in the second pass to
+        # settlements in  rr_collect data using a similarity threshold of 0.75
+        perfect, updated_not_matched, similar_matched_5, updated_rr_collect_list= similar_name(updated_not_matched,updated_rr_collect_list,perfect,local_gov,.75,dictionary=True)
+       
+        # Create an excel file with matched settlements between not_matched settlements from p3b data and rr_collect data
+        create_excel(perfect,{},local_gov,"Adamawa_matching_set_with_RR_Collect.xlsx",field_name="RR Collect Name")
+        print("Done...........................................")
+        print("Finish rr collect...........................................||||||||||||||||||||||||||||||||||")
+
+
+        # Match settlements that did not macthed at all using lower threshold and append to another file
+        # Perform similar name matching between updated_not_matched settlements from p3b data and grid3 data with threshold of 0.6
+        perfect ={}
+        perfect, updated_not_matched, similar_matched_5, updated_grid3_list= similar_name(updated_not_matched,updated_grid3_list,perfect,local_gov,.6,dictionary=True)
+        create_excel(perfect,{},local_gov,"Adamawa_matching_set_with_GRID3_6.xlsx")
+        print("Done...........................................")
+        
+        # Perform similar name matching between updated_not_matched settlements from p3b data and rr collect data data with threshold of 0.6
+
+        perfect ={}
+        perfect, updated_not_matched, similar_matched_5, updated_rr_collect_list= similar_name(updated_not_matched,updated_rr_collect_list,perfect,local_gov,.6,dictionary=True)
+      
+        create_excel(perfect,{},local_gov,"Adamawa_matching_set_with_RR_Collect_6.xlsx",field_name="RR Collect Name")
+
+        # Create Excel file with the not matched items
+        create_excel({},updated_not_matched,local_gov,"Adamawa_matching_set_no_match.xlsx")
+
+        print("Done...........................................")
+    print("Finish...........................................")
