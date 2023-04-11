@@ -72,3 +72,33 @@ def write_csv(data_frame):
     print(dh_dataframe)
     settlement_dataframe.to_csv("Cleaned_adamawa_settlement_capture.csv", index=False)
     dh_dataframe.to_csv("Cleaned_adamawa_DH_capture.csv", index=False)
+
+def write_grid3_csv(data_frame,state):
+    """
+        extracts all settlments points of a state from the GRID3 data sets.
+        it arrange the columns in a format suitable for matching process
+        Args:
+                data_frame: pandas dataframe of the GRID3 settlement point
+                            data 
+                state: The state you want it settlements to be extracted
+    """
+    settlement_data = {"State":[],"LGA":[],"Ward":[], "Name of Settlement":[],
+                        "Latitude":[],"Longitude":[],}
+    for idx in range(len(data_frame)):
+        if data_frame['statename'][idx] == f"{state}":
+            settlement_data["State"].append(data_frame["statename"][idx])
+            settlement_data["LGA"].append(data_frame["lganame"][idx])
+            settlement_data["Ward"].append(data_frame["wardname"][idx])
+            settlement_data["Name of Settlement"].append(data_frame["set_name"][idx])
+            settlement_data["Latitude"].append(data_frame["Y"][idx])
+            settlement_data["Longitude"].append(data_frame["X"][idx])
+          
+
+    settlement_dataframe = pd.DataFrame(settlement_data, index=None)
+    print(settlement_dataframe)
+    settlement_dataframe.to_csv(f"{state}_grid3_settlements.csv", index=False)
+
+
+write_csv(df)
+
+write_grid3_csv(df)
