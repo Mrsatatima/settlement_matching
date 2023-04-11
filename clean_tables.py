@@ -1,8 +1,11 @@
 import pandas as pd
 
-filename = 'RR_Collect_Merged_Form_Data (1).xlsx'
-df = pd.read_excel(filename,  index_col=None)
-df2 = pd.read_csv("GRID3_Nigeria_-_Settlement_Points.csv", index_col=None)
+rr_collect_filename = ''
+grid3_filename = ''
+state = ''
+df = pd.read_excel(rr_collect_filename,  index_col=None)
+df2 = pd.read_csv(grid3_filename, index_col=None)
+
 
 fields ={
         "State":"Please Select the State You are Currently In",
@@ -101,4 +104,4 @@ def write_grid3_csv(data_frame,state):
 
 write_csv(df)
 
-write_grid3_csv(df)
+write_grid3_csv(df2,state)
