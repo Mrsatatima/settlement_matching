@@ -170,3 +170,118 @@ def matching_same_name(p3b_list, capture_list, perfect_match, LGA, captured=True
     # Return the updated P3B list, capture list, perfect match dictionary, and count of matches.
     return p3b_list, capture_list, perfect_match, count
 
+def match_phrases(phrase1, phrase2, ratio=0.8):
+    """
+        Compares two phrases and returns whether they are a match based on a similarity ratio.
+
+        Args:
+            phrase1 (str): The first phrase to compare.
+            phrase2 (str): The second phrase to compare.
+            ratio (float, optional): The minimum similarity ratio required to consider the phrases a match. Defaults to 0.8.
+
+        Returns:
+            tuple: A tuple containing a boolean indicating whether the phrases are a match, and the similarity ratio between them.
+    """
+    # If either phrase is empty or only contains whitespace, they cannot be a match
+    if phrase1 in [" ",""] or phrase2 in [" ",""]:
+        return False, 0
+    
+    # Calculate the similarity ratio between the two phrases using the SequenceMatcher class from difflib
+    similarity_ratio = difflib.SequenceMatcher(None, phrase1, phrase2).ratio()
+    
+    # If the similarity ratio is above the specified threshold, consider the phrases a match
+    if similarity_ratio >= ratio:  
+        return True, similarity_ratio
+    else:
+        return False, similarity_ratio
+
+def similar_name(p3b_list, capture_list, perfect_match, LGA, ratio, dictionary=False):
+    """
+        Find similar names between two dictionaries of settlements.
+
+        Parameters:
+        -----------
+        p3b_list : dict
+            A dictionary of settlements with Local Government Areas and wards as keys from P3B.
+        capture_list : dict
+            A dictionary of settlements with Local Government Areas and wards as keys from RR Collect of GRID3.
+        perfect_match : dict
+            A dictionary to store the matching settlements.
+        LGA : str
+            A string that specifies the Local Government Area to match.
+        ratio : float
+            A float between 0 and 1 that specifies the ratio of similarity between the settlement names.
+        captured : bool, optional
+            A boolean value that specifies if the settlement name should be captured or not.
+        dictionary : bool, optional
+            A boolean value that specifies if the common words in the settlement names should be removed.
+
+        Returns:
+        --------
+        tuple
+            A tuple containing four elements:
+            - A dictionary of matching settlements.
+            - A dictionary of settlements with unmatched settlements removed.
+            - The number of settlements removed.
+            - A dictionary of settlements that did not match.
+    """
+    p3b_list=deepcopy(p3b_list)  # Make a copy of p3b_list to avoid modifying the original
+    capture_list=deepcopy(capture_list)  # Make a copy of capture_list to avoid modifying the original
+    count =0  # Initialize a count variable to zero
+    settlement_list = {}  # Create an empty dictionary to store the settlement data
+
+    # Loop through the LGA and wards in p3b_list
+    for lga, wards in p3b_list.items():
+        if lga in capture_list:  # Check if the LGA is in the capture_list or matching
+            # Loop through the wards in the p3b_list
+            for ward in wards:
+                if ward in capture_list[lga]:  # Check if the ward is in the capture_list for the current LGA
+                    # Loop through the settlements in the current ward
+                    for settlement in wards[ward]:
+                        matcthin_list = {}  # Initialize an empty dictionary to store matching settlements
+
+                        # Loop through the settlements in the capture_list for the current LGA and ward
+                        for settlement2 in capture_list[lga][ward]:
+                            common_words = ["anguwan","anguwar","anguwa","angwa","ang","unguwan","unguwar",
+                                            "alhaji","alh", "gidan","gildan","jauro","ung"
+                                            "lccn","mayo", "village","head","phcc","phc","clinic","hc",
+                                            "health","clinic", "post", "hp","hc", "jauro",'gida',"h/c","h/p"
+                                            "house", "primary","pri", "school","sch","islamiyya","mallam","malam",
+                                            "primary", "secondary","hospital","dh","sec","line","street","str",
+                                            "sabon gari","sabongari"]  # Define a list of common words to remove from settlement names
+                            
+                            settlement_remove = settlement  # Set the settlement_remove variable to the current settlement
+                            settlement2_remove = settlement2  # Set the settlement2_remove variable to the current settlement in the capture_list
+                            if dictionary: # if dictionary is true remove common words
+                                for word in common_words: # loop through common_words list
+                                    settlement_remove = settlement_remove.replace(word,"") # remove common words from settlement
+                                    settlement2_remove = settlement2_remove.replace(word,"") # remove common words from settlement2
+                            settlement2_remove.strip() # remove leading/trailing spaces from settlement2_remove
+                            settlement_remove.strip() # remove leading/trailing spaces from settlement_remove
+                            get_match = match_phrases(settlement_remove,settlement2_remove,ratio) # get match between settlement and settlement2
+                            if get_match[0]: # if get_match is is true
+                                matcthin_list[settlement2] = get_match[1] # add settlement2 and its match ratio to matcthin_list
+                        if matcthin_list: # if matcthin_list is not empty
+                            settlement2 = max(matcthin_list, key=matcthin_list.get) # get settlement2 with highest match ratio
+                            if lga not in perfect_match: # if lga not in perfect_match
+                                perfect_match[lga]={} # add lga to perfect_match
+                            if ward not in perfect_match[lga]: # if ward not in perfect_match[lga]
+                                perfect_match[lga][ward]={} # add ward to perfect_match[lga]
+                            if settlement not in perfect_match[lga][ward]: # if settlement not in perfect_match[lga][ward]
+                                perfect_match[lga][ward][settlement]={} # add settlement to perfect_match[lga][ward]
+                            perfect_match[lga][ward][settlement][settlement2]=capture_list[lga][ward][settlement2] 
+                            # add settlement and its best match (settlement2) to perfect_match[lga][ward]
+                            capture_list[lga][ward].pop(settlement2) # remove settlement2 from capture_list
+                            if ward not in settlement_list: # if ward not in settlement_list
+                                settlement_list[ward] =set() # add ward to settlement_list
+                            settlement_list[ward].add(settlement) # add settlement to settlement_list[ward]
+
+    # loop through settlement_list to remove settlements that are matched in p3b_list
+    for ward, settlements in settlement_list.items(): # loop through settlement_list
+        for settlement in settlements: # loop through settlements in ward
+            if settlement in p3b_list[LGA.lower()][ward]: # if settlement is in p3b_list[LGA.lower()][ward]
+                p3b_list[LGA.lower()][ward].remove(settlement) # remove settlement from p3b_list
+            count+=1
+
+    # return the following variables
+    return perfect_match, p3b_list, count, capture_list
