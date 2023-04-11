@@ -114,3 +114,59 @@ def get_captured_list(df, LGA, grid3=False):
                 captured_list[lga][ward][settlement] = f"{latitude}|{longitude}" if not grid3 else f"{latitude}|{longitude}|{accuracy}|{altitude}"
 
     return captured_list
+
+def matching_same_name(p3b_list, capture_list, perfect_match, LGA, captured=True):
+    """
+        Matches settlements in the P3B list with those in the capture list that have the same name, 
+        and returns a dictionary of perfect matches. 
+        
+        Args:
+            p3b_list (dict): Dictionary of settlements in P3B list.
+            capture_list (dict): Dictionary of captured settlements.
+            perfect_match (dict): Dictionary of perfect matches.
+            LGA (str): Name of Local Government Area.
+            captured (bool): Whether the capture list is a RR collect or a GRID3 list. 
+                Defaults to True.
+        
+        Returns:
+            tuple: A tuple containing the updated P3B list, capture list, perfect match dictionary, and count of matches.
+    """
+    settlement_list = {}
+    count = 0
+    
+    # Iterate through the P3B list and compare settlements to the captured settlements.
+    for lga, wards in p3b_list.items():
+        if lga in capture_list:
+            for ward in wards:
+                if ward in capture_list[lga]:
+                    for settlement in wards[ward]:
+                        if settlement in capture_list[lga][ward]:
+                            # Add the settlement to the perfect match dictionary.
+                            if lga not in perfect_match:
+                                perfect_match[lga] = {}
+                            if ward not in perfect_match[lga]:
+                                perfect_match[lga][ward] = {}
+                            perfect_match[lga][ward][settlement] = {settlement: capture_list[lga][ward][settlement]} \
+                                if captured else {settlement: settlement}
+                            count += 1
+                            
+                            # Remove the settlement from the capture list.
+                            if captured:
+                                capture_list[lga][ward].pop(settlement)
+                            else:
+                                capture_list[lga][ward].remove(settlement)
+                            
+                            # Add the settlement to the settlement list.
+                            if ward not in settlement_list:
+                                settlement_list[ward] = []
+                            settlement_list[ward].append(settlement)
+    
+    # Remove settlements from the P3B list that have been matched using the settlement list.
+    for ward, settlements in settlement_list.items():
+        for settlement in settlements:
+            if settlement in p3b_list[LGA.lower()][ward]:
+                p3b_list[LGA.lower()][ward].remove(settlement)
+    
+    # Return the updated P3B list, capture list, perfect match dictionary, and count of matches.
+    return p3b_list, capture_list, perfect_match, count
+
